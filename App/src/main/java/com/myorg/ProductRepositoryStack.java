@@ -3,12 +3,17 @@ package com.myorg;
 import software.amazon.awscdk.*;
 import software.amazon.awscdk.services.apigateway.*;
 import software.amazon.awscdk.services.apigateway.IResource;
+import software.amazon.awscdk.services.dynamodb.*;
 import software.amazon.awscdk.services.events.targets.ApiGateway;
+import software.amazon.awscdk.services.iam.*;
 import software.amazon.awscdk.services.lambda.AssetCode;
 import software.amazon.awscdk.services.lambda.Runtime;
 import software.amazon.awscdk.services.lambda.Function;
 import software.amazon.awscdk.services.lambda.Code;
 import software.constructs.Construct;
+
+import java.util.List;
+import java.util.Map;
 
 public class ProductRepositoryStack extends Stack {
     private static final AssetCode LAMBDA_JAR = Code.fromAsset("lambda/target/lambda-0.1.jar");
@@ -20,12 +25,41 @@ public class ProductRepositoryStack extends Stack {
     public ProductRepositoryStack(final Construct scope, final String id, final StackProps props) {
         super(scope, id, props);
 
+        ITable productsTable = Table.fromTableAttributes(this, "ProductsTable", TableAttributes.builder()
+                .tableName("products")
+                .build());
+
+        ITable stocksTable = Table.fromTableAttributes(this, "StocksTable", TableAttributes.builder()
+                .tableName("stocks")
+                .build());
+
+        Role lambdaRole = Role.Builder.create(this, "LambdaExecutionRole")
+                .assumedBy(new ServicePrincipal("lambda.amazonaws.com"))
+                .managedPolicies(List.of(
+                        ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")
+                ))
+                .build();
+
+        //
+        lambdaRole.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName("AmazonDynamoDBReadOnlyAccess"));
+
         Function getProductsListFunction = Function.Builder.create(this, "GetProductList")
                 .functionName("GetProductList")
                 .runtime(Runtime.JAVA_21)
                 .code(LAMBDA_JAR)
                 .handler("com.myorg.GetProductsListHandler")
+                .role(lambdaRole)
+                .environment(Map.of(
+                        "PRODUCTS_TABLE", productsTable.getTableName(),
+                        "STOCKS_TABLE", stocksTable.getTableName()
+                ))
                 .build();
+
+        // ✅ grant read db access to lambda
+        productsTable.grantFullAccess(getProductsListFunction);
+        stocksTable.grantFullAccess(getProductsListFunction);
+        //productsTable.grantReadData(getProductByIdFunction);
+        //stocksTable.grantReadData(getProductByIdFunction);
 
         // Define the GetProductDetailsHandler Lambda function
         Function getProductByIdFunction = Function.Builder.create(this, "GetProductListById")
