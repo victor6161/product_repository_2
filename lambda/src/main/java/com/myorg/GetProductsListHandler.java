@@ -2,29 +2,25 @@ package com.myorg;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
-import com.amazonaws.services.dynamodbv2.document.DynamoDB;
-import com.amazonaws.services.dynamodbv2.document.Item;
-import com.amazonaws.services.dynamodbv2.document.ItemCollection;
-import com.amazonaws.services.dynamodbv2.document.ScanOutcome;
-import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.*;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class GetProductsListHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
-
-    private static final String PRODUCTS_TABLE = System.getenv("PRODUCTS_TABLE");
-    private static final String STOCKS_TABLE = System.getenv("STOCKS_TABLE");
 
     private static final AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard().build();
     private static final DynamoDB dynamoDB = new DynamoDB(client);
     private static final Table productsTable = dynamoDB.getTable("products");
     private static final Table stocksTable = dynamoDB.getTable("stocks");
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
@@ -35,58 +31,33 @@ public class GetProductsListHandler implements RequestHandler<APIGatewayProxyReq
         try {
             // get all products
             ItemCollection<ScanOutcome> productsScan = productsTable.scan();
-            context.getLogger().log("!!!!!!!productsTable.scan...\n");
-            context.getLogger().log("!!!!!!!productsTable.scan...\n" + productsScan);
-            context.getLogger().log("!!!!!!!get total count .scan...\n" + productsScan.getAccumulatedItemCount());
-
-
-            List<Map<String, Object>> productList = new ArrayList<>();
-            stocksTable.scan();
-
             ItemCollection<ScanOutcome> stocksScan = stocksTable.scan();
-            context.getLogger().log("!!!!!!!stocksTable.scan...\n");
-            context.getLogger().log("!!!!!!!stocksTable.scan...\n" + stocksScan);
-            context.getLogger().log("!!!!!!!get total count .scan...\n" + stocksScan.getAccumulatedItemCount());
+
+            List<Product> productList = new ArrayList<>();
 
             Map<String, Integer> stockMap = new HashMap<>();
-
             for (Item stockItem : stocksScan) {
                 String productId = stockItem.getString("product_id");
-                context.getLogger().log("!!!!!!!productId...\n" + productId);
                 Integer count = stockItem.getInt("count");
-                context.getLogger().log("!!!!!!!count...\n" + count);
 
                 if (productId != null) {
                     stockMap.put(productId, count);
                 }
             }
-            context.getLogger().log("!!!!!!!stockMap" + stockMap);
 
             for (Item productItem : productsScan) {
                 String productId = productItem.getString("id");
-                context.getLogger().log("!!!!!!!productItem" + productItem);
-
-                // Получаем количество товара (если есть)
                 int count = stockMap.getOrDefault(productId, 0);
-
-                // Собираем продукт
-                Map<String, Object> product = Map.of(
-                        "id", productId,
-                        "title", productItem.getString("title"),
-                        "description", productItem.getString("description"),
-                        "price", productItem.getInt("price"),
-                        "count", count
-                );
-                context.getLogger().log("!!!!!!!productItem" + product);
-
-                productList.add(product);
+                int price = productItem.getInt("price");
+                String title = productItem.getString("title");
+                String description = productItem.getString("description");
+                productList.add(new Product(productId, count, price, title, description));
             }
-            context.getLogger().log("!!!!!!!OBJECT_MAPPER reached...\n");
-            String responseBody = OBJECT_MAPPER.writeValueAsString(productList);
-            context.getLogger().log("!!!!!!!OBJECT_MAPPER finished...\n");
+            String responseBody = objectMapper.writeValueAsString(productList);
 
             response.setBody(responseBody);
         } catch (Throwable e) {
+            context.getLogger().log("!!!!!!!EXCEPTION MESSAGE\n" + e.getMessage());
             response.setStatusCode(500);
             response.setBody("{\"message\":\"Internal server error\"}1111" + e.getMessage());
         }

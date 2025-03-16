@@ -1,8 +1,10 @@
 package com.myorg;
 
 public record Product(
-        int id,
-        String name,
-        double price
+        String id,
+        Integer count,
+        Integer price,
+        String title,
+        String description
 ) {
 }

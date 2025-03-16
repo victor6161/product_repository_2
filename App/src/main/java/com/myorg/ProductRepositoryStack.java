@@ -36,12 +36,10 @@ public class ProductRepositoryStack extends Stack {
         Role lambdaRole = Role.Builder.create(this, "LambdaExecutionRole")
                 .assumedBy(new ServicePrincipal("lambda.amazonaws.com"))
                 .managedPolicies(List.of(
-                        ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")
-                ))
+                        ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
+                        ManagedPolicy.fromAwsManagedPolicyName("AmazonDynamoDBFullAccess")
+                        ))
                 .build();
-
-        //
-        lambdaRole.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName("AmazonDynamoDBReadOnlyAccess"));
 
         Function getProductsListFunction = Function.Builder.create(this, "GetProductList")
                 .functionName("GetProductList")
@@ -58,8 +56,6 @@ public class ProductRepositoryStack extends Stack {
         // ✅ grant read db access to lambda
         productsTable.grantFullAccess(getProductsListFunction);
         stocksTable.grantFullAccess(getProductsListFunction);
-        //productsTable.grantReadData(getProductByIdFunction);
-        //stocksTable.grantReadData(getProductByIdFunction);
 
         // Define the GetProductDetailsHandler Lambda function
         Function getProductByIdFunction = Function.Builder.create(this, "GetProductListById")
@@ -67,6 +63,11 @@ public class ProductRepositoryStack extends Stack {
                 .runtime(Runtime.JAVA_21)
                 .code(LAMBDA_JAR)
                 .handler("com.myorg.GetProductsById")
+                .role(lambdaRole)
+                .environment(Map.of(
+                        "PRODUCTS_TABLE", productsTable.getTableName(),
+                        "STOCKS_TABLE", stocksTable.getTableName()
+                ))
                 .build();
 
         ApiGateway api = ApiGateway.Builder.create(
