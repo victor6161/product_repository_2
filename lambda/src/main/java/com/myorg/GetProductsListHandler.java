@@ -10,7 +10,6 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,23 +30,15 @@ public class GetProductsListHandler implements RequestHandler<APIGatewayProxyReq
         try {
             // get all products
             ItemCollection<ScanOutcome> productsScan = productsTable.scan();
-            ItemCollection<ScanOutcome> stocksScan = stocksTable.scan();
-
             List<Product> productList = new ArrayList<>();
-
-            Map<String, Integer> stockMap = new HashMap<>();
-            for (Item stockItem : stocksScan) {
-                String productId = stockItem.getString("product_id");
-                Integer count = stockItem.getInt("count");
-
-                if (productId != null) {
-                    stockMap.put(productId, count);
-                }
-            }
 
             for (Item productItem : productsScan) {
                 String productId = productItem.getString("id");
-                int count = stockMap.getOrDefault(productId, 0);
+                var stockItem = stocksTable.getItem("product_id", productId);
+                Integer count = null;
+                if (stockItem != null) {
+                    count = stockItem.getInt("count");
+                }
                 int price = productItem.getInt("price");
                 String title = productItem.getString("title");
                 String description = productItem.getString("description");
