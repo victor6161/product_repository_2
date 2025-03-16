@@ -47,7 +47,7 @@ public class GetProductsListHandler implements RequestHandler<APIGatewayProxyReq
             String responseBody = objectMapper.writeValueAsString(productList);
 
             response.setBody(responseBody);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             context.getLogger().log("!!!!!!!EXCEPTION MESSAGE\n" + e.getMessage());
             response.setStatusCode(500);
             response.setBody("{\"message\":\"Internal server error\"}1111" + e.getMessage());

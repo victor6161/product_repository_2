@@ -1,19 +1,26 @@
 package com.myorg;
 
-import software.amazon.awscdk.*;
-import software.amazon.awscdk.services.apigateway.*;
+import software.amazon.awscdk.CfnOutput;
+import software.amazon.awscdk.Duration;
+import software.amazon.awscdk.Stack;
+import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.apigateway.IResource;
-import software.amazon.awscdk.services.dynamodb.*;
+import software.amazon.awscdk.services.apigateway.LambdaIntegration;
+import software.amazon.awscdk.services.apigateway.RestApi;
+import software.amazon.awscdk.services.dynamodb.ITable;
+import software.amazon.awscdk.services.dynamodb.Table;
+import software.amazon.awscdk.services.dynamodb.TableAttributes;
 import software.amazon.awscdk.services.events.targets.ApiGateway;
-import software.amazon.awscdk.services.iam.*;
+import software.amazon.awscdk.services.iam.ManagedPolicy;
+import software.amazon.awscdk.services.iam.Role;
+import software.amazon.awscdk.services.iam.ServicePrincipal;
 import software.amazon.awscdk.services.lambda.AssetCode;
-import software.amazon.awscdk.services.lambda.Runtime;
-import software.amazon.awscdk.services.lambda.Function;
 import software.amazon.awscdk.services.lambda.Code;
+import software.amazon.awscdk.services.lambda.Function;
+import software.amazon.awscdk.services.lambda.Runtime;
 import software.constructs.Construct;
 
 import java.util.List;
-import java.util.Map;
 
 public class ProductRepositoryStack extends Stack {
     private static final AssetCode LAMBDA_JAR = Code.fromAsset("lambda/target/lambda-0.1.jar");
@@ -47,10 +54,7 @@ public class ProductRepositoryStack extends Stack {
                 .code(LAMBDA_JAR)
                 .handler("com.myorg.GetProductsListHandler")
                 .role(lambdaRole)
-                .environment(Map.of(
-                        "PRODUCTS_TABLE", productsTable.getTableName(),
-                        "STOCKS_TABLE", stocksTable.getTableName()
-                ))
+                .timeout(Duration.seconds(46))
                 .build();
 
         // ✅ grant read db access to lambda
@@ -64,10 +68,16 @@ public class ProductRepositoryStack extends Stack {
                 .code(LAMBDA_JAR)
                 .handler("com.myorg.GetProductsById")
                 .role(lambdaRole)
-                .environment(Map.of(
-                        "PRODUCTS_TABLE", productsTable.getTableName(),
-                        "STOCKS_TABLE", stocksTable.getTableName()
-                ))
+                .timeout(Duration.seconds(46))
+                .build();
+
+        Function createProductFunction = Function.Builder.create(this, "CreateProduct")
+                .functionName("CreateProduct")
+                .runtime(Runtime.JAVA_21)
+                .code(LAMBDA_JAR)
+                .handler("com.myorg.CreateProduct")
+                .role(lambdaRole)
+                .timeout(Duration.seconds(46))
                 .build();
 
         ApiGateway api = ApiGateway.Builder.create(
@@ -85,6 +95,12 @@ public class ProductRepositoryStack extends Stack {
         products.addMethod("GET",
                 LambdaIntegration.Builder
                         .create(getProductsListFunction)
+                        .build()
+        );
+
+        products.addMethod("POST",
+                LambdaIntegration.Builder
+                        .create(createProductFunction)
                         .build()
         );
 
