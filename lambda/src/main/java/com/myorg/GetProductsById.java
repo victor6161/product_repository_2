@@ -12,6 +12,7 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -28,7 +29,7 @@ public class GetProductsById implements RequestHandler<APIGatewayProxyRequestEve
         context.getLogger().log("CUSTOM MESSAGE Lambda execution started get Product by id...\n");
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
         response.setStatusCode(200);
-        response.setHeaders(Map.of("Content-Type", "application/json"));
+        response.setHeaders(getCorsHeaders());
         String productId = event.getPathParameters().get("productId");
 
         Item result = productsTable.getItem("id", productId);
@@ -56,5 +57,14 @@ public class GetProductsById implements RequestHandler<APIGatewayProxyRequestEve
         }
 
         return response;
+    }
+
+    private Map<String, String> getCorsHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Content-Type", "application/json");
+        headers.put("Access-Control-Allow-Origin", "*"); // Разрешает все домены
+        headers.put("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"); // Разрешенные методы
+        headers.put("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        return headers;
     }
 }

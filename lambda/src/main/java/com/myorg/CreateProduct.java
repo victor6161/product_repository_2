@@ -12,6 +12,7 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -25,7 +26,7 @@ public class CreateProduct implements RequestHandler<APIGatewayProxyRequestEvent
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent apiGatewayProxyRequestEvent, Context context) {
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
-        response.setHeaders(Map.of("Content-Type", "application/json"));
+        response.setHeaders(getCorsHeaders());
 
         try {
             JsonNode requestBody = objectMapper.readTree(apiGatewayProxyRequestEvent.getBody());
@@ -54,5 +55,14 @@ public class CreateProduct implements RequestHandler<APIGatewayProxyRequestEvent
         }
 
         return response;
+    }
+
+    private Map<String, String> getCorsHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Content-Type", "application/json");
+        headers.put("Access-Control-Allow-Origin", "*"); // Разрешает все домены
+        headers.put("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"); // Разрешенные методы
+        headers.put("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        return headers;
     }
 }
