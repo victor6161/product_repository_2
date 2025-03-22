@@ -10,7 +10,6 @@ import software.amazon.awscdk.services.apigateway.RestApi;
 import software.amazon.awscdk.services.dynamodb.ITable;
 import software.amazon.awscdk.services.dynamodb.Table;
 import software.amazon.awscdk.services.dynamodb.TableAttributes;
-import software.amazon.awscdk.services.events.targets.ApiGateway;
 import software.amazon.awscdk.services.iam.ManagedPolicy;
 import software.amazon.awscdk.services.iam.Role;
 import software.amazon.awscdk.services.iam.ServicePrincipal;
@@ -32,86 +31,66 @@ public class ProductRepositoryStack extends Stack {
     public ProductRepositoryStack(final Construct scope, final String id, final StackProps props) {
         super(scope, id, props);
 
-        ITable productsTable = Table.fromTableAttributes(this, "ProductsTable", TableAttributes.builder()
-                .tableName("products")
-                .build());
+        ITable productsTable = importTable("ProductsTable", "products");
+        ITable stocksTable = importTable("StocksTable", "stocks");
 
-        ITable stocksTable = Table.fromTableAttributes(this, "StocksTable", TableAttributes.builder()
-                .tableName("stocks")
-                .build());
+        Role lambdaRole = createLambdaExecutionRole();
 
-        Role lambdaRole = Role.Builder.create(this, "LambdaExecutionRole")
+        Function getProductsListFunction = createLambdaFunction("GetProductList", "GetProductList", "com.myorg.GetProductsListHandler", lambdaRole);
+        Function getProductByIdFunction = createLambdaFunction("GetProductListById", "GetProductById", "com.myorg.GetProductsById", lambdaRole);
+        Function createProductFunction = createLambdaFunction("CreateProduct", "CreateProduct", "com.myorg.CreateProduct", lambdaRole);
+
+        productsTable.grantFullAccess(getProductsListFunction);
+        stocksTable.grantFullAccess(getProductsListFunction);
+
+        RestApi api = createRestApi();
+        setupApiResources(api, getProductsListFunction, createProductFunction, getProductByIdFunction);
+
+        CfnOutput.Builder.create(this, "URL").value(api.getRoot().getPath() + "products").build();
+    }
+
+    private ITable importTable(String id, String tableName) {
+        return Table.fromTableAttributes(this, id, TableAttributes.builder()
+                .tableName(tableName)
+                .build());
+    }
+
+    private Role createLambdaExecutionRole() {
+        return Role.Builder.create(this, "LambdaExecutionRole")
                 .assumedBy(new ServicePrincipal("lambda.amazonaws.com"))
                 .managedPolicies(List.of(
                         ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
                         ManagedPolicy.fromAwsManagedPolicyName("AmazonDynamoDBFullAccess")
-                        ))
+                ))
                 .build();
+    }
 
-        Function getProductsListFunction = Function.Builder.create(this, "GetProductList")
-                .functionName("GetProductList")
+    private Function createLambdaFunction(String constructId, String functionName, String handler, Role role) {
+        return Function.Builder.create(this, constructId)
+                .functionName(functionName)
                 .runtime(Runtime.JAVA_21)
                 .code(LAMBDA_JAR)
-                .handler("com.myorg.GetProductsListHandler")
-                .role(lambdaRole)
+                .handler(handler)
+                .role(role)
                 .timeout(Duration.seconds(46))
                 .build();
+    }
 
-        // ✅ grant read db access to lambda
-        productsTable.grantFullAccess(getProductsListFunction);
-        stocksTable.grantFullAccess(getProductsListFunction);
-
-        // Define the GetProductDetailsHandler Lambda function
-        Function getProductByIdFunction = Function.Builder.create(this, "GetProductListById")
-                .functionName("GetProductById")
-                .runtime(Runtime.JAVA_21)
-                .code(LAMBDA_JAR)
-                .handler("com.myorg.GetProductsById")
-                .role(lambdaRole)
-                .timeout(Duration.seconds(46))
+    private RestApi createRestApi() {
+        return RestApi.Builder.create(this, "ProductServiceApi")
+                .description("This service serves products.")
+                .restApiName("Product Service")
                 .build();
+    }
 
-        Function createProductFunction = Function.Builder.create(this, "CreateProduct")
-                .functionName("CreateProduct")
-                .runtime(Runtime.JAVA_21)
-                .code(LAMBDA_JAR)
-                .handler("com.myorg.CreateProduct")
-                .role(lambdaRole)
-                .timeout(Duration.seconds(46))
-                .build();
-
-        ApiGateway api = ApiGateway.Builder.create(
-                        RestApi.Builder
-                                .create(this, "ProductServiceApi")
-                                .description("This service serves products.")
-                                .restApiName("Product Service")
-                                .build())
-                .build();
-
-        IResource root = api.getIRestApi().getRoot();
-
+    private void setupApiResources(RestApi api, Function getListFn, Function createFn, Function getByIdFn) {
+        IResource root = api.getRoot();
         IResource products = root.addResource("products");
-        // get all products
-        products.addMethod("GET",
-                LambdaIntegration.Builder
-                        .create(getProductsListFunction)
-                        .build()
-        );
 
-        products.addMethod("POST",
-                LambdaIntegration.Builder
-                        .create(createProductFunction)
-                        .build()
-        );
+        products.addMethod("GET", LambdaIntegration.Builder.create(getListFn).build());
+        products.addMethod("POST", LambdaIntegration.Builder.create(createFn).build());
 
-        // get product by id
         products.addResource("{productId}")
-                .addMethod("GET",
-                        LambdaIntegration.Builder
-                                .create(getProductByIdFunction)
-                                .build()
-                );
-
-        CfnOutput.Builder.create(this, "URL").value(root.getPath() + "products").build();
+                .addMethod("GET", LambdaIntegration.Builder.create(getByIdFn).build());
     }
 }
