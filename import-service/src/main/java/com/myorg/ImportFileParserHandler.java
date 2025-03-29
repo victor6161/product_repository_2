@@ -15,7 +15,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 public class ImportFileParserHandler implements RequestHandler<S3Event, String> {
-
     private final S3Client s3Client = S3Client.create();
 
     @Override

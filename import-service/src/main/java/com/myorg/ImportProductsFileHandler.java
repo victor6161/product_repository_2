@@ -4,18 +4,24 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+
 import java.net.URL;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
 public class ImportProductsFileHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
-    private final AmazonS3 s3 = AmazonS3ClientBuilder.standard().build();
+    public static final String BUCKET_NAME_CDK = "rsschool-task-5-cdk";
+    private final S3Presigner presigner = S3Presigner.builder()
+            .region(Region.EU_CENTRAL_1) // Replace with your region
+            .credentialsProvider(DefaultCredentialsProvider.create())
+            .build();
+
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
@@ -26,14 +32,18 @@ public class ImportProductsFileHandler implements RequestHandler<APIGatewayProxy
         context.getLogger().log("!!!!!!!!!!!!!!!! ImportProductsFileHandler reached");
 
         String fileName = queryParams.get("name");
-        // Generate a pre-signed URL valid for 15 minutes
-        Date expiration = Date.from(Instant.now().plus(Duration.ofMinutes(15)));
-        GeneratePresignedUrlRequest generatePresignedUrlRequest =
-                new GeneratePresignedUrlRequest("rsschool-task-5", "uploaded/" + fileName)
-                .withMethod(com.amazonaws.HttpMethod.PUT)
-                .withExpiration(expiration);
 
-        URL url = s3.generatePresignedUrl(generatePresignedUrlRequest);
+        PutObjectRequest objectRequest = PutObjectRequest.builder()
+                .bucket(BUCKET_NAME_CDK)
+                .key("uploaded/" + fileName)
+                .contentType("text/csv")
+                .build();
+
+        PresignedPutObjectRequest presignedRequest = presigner.presignPutObject(presign -> presign
+                .signatureDuration(Duration.ofMinutes(15))
+                .putObjectRequest(objectRequest));
+
+        URL url = presignedRequest.url();
 
         return new APIGatewayProxyResponseEvent()
                 .withStatusCode(200)
