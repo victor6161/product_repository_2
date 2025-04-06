@@ -6,9 +6,8 @@ import software.amazon.awscdk.StackProps;
 public class ProductRepositoryApp {
     public static void main(final String[] args) {
         App app = new App();
-
-        new ProductRepositoryStack(app, "ProductRepositoryStack", StackProps.builder().build());
-        new ImportProductsStack(app, "ImportProductsStack", StackProps.builder().build());
+        ProductRepositoryStack productRepoStack = new ProductRepositoryStack(app, "ProductRepositoryStack", StackProps.builder().build());
+        new ImportProductsStack(app, "ImportProductsStack", StackProps.builder().build(), productRepoStack.getCatalogItemsQueue());
 
         app.synth();
     }

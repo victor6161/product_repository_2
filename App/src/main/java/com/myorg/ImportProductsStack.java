@@ -19,6 +19,7 @@ import software.amazon.awscdk.services.lambda.eventsources.S3EventSourceProps;
 import software.amazon.awscdk.services.s3.*;
 import software.amazon.awscdk.services.s3.deployment.BucketDeployment;
 import software.amazon.awscdk.services.s3.deployment.Source;
+import software.amazon.awscdk.services.sqs.Queue;
 import software.constructs.Construct;
 
 import java.util.List;
@@ -29,7 +30,7 @@ public class ImportProductsStack extends Stack {
     private static final AssetCode IMPORT_SERVICE_JAR = Code.fromAsset("import-service/target/import-service-0.1.jar");
     public static final String BUCKET_NAME_CDK = "rsschool-task-5-cdk";
 
-    public ImportProductsStack(final Construct scope, final String id, final StackProps props) {
+public ImportProductsStack(final Construct scope, final String id, final StackProps props, final Queue queue) {
         super(scope, id, props);
 
         // 1. Create the S3 bucket
@@ -78,6 +79,7 @@ public class ImportProductsStack extends Stack {
                 .build();
 
         bucket.grantRead(importFileParserFunction);
+        queue.grantSendMessages(importFileParserFunction);
 
         S3EventSource s3EventSource = new S3EventSource(
                 bucket,
@@ -98,7 +100,7 @@ public class ImportProductsStack extends Stack {
                 LambdaIntegration.Builder.create(importProductsFileFunction).build(),
                 MethodOptions.builder()
                         .requestParameters(Map.of(
-                                "method.request.querystring.name", true // name is required
+                                "method.request.querystring.name", true
                         ))
                         .build()
         );
