@@ -46,12 +46,14 @@ public class ImportFileParserHandler implements RequestHandler<S3Event, String> 
             context.getLogger().log("!!!QueueUrl: " + queueUrl);
 
             while (reader.readNext() != null) {
+                // TODO use Product class
                 Map<String, String> product = new HashMap<>();
                 String [] line = reader.readNext();
-                product.put("title", line[0]);
-                product.put("description", line[1]);
-                product.put("price", line[2]);
-                product.put("quantity", line[3]);
+                product.put("id", line[0]);
+                product.put("title", line[1]);
+                product.put("description", line[2]);
+                product.put("price", line[3]);
+                product.put("count", line[4]);
 
                 String messageBody = objectMapper.writeValueAsString(product);
                 context.getLogger().log("!!!!MessageBody: " + messageBody);
