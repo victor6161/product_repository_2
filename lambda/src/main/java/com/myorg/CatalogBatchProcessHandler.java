@@ -8,6 +8,9 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.SQSEvent;
+
+import com.amazonaws.services.sns.AmazonSNS;
+import com.amazonaws.services.sns.AmazonSNSClientBuilder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -19,10 +22,14 @@ public class CatalogBatchProcessHandler implements RequestHandler<SQSEvent, Void
     private static final DynamoDB dynamoDB = new DynamoDB(client);
     private static final Table productsTable = dynamoDB.getTable("products");
 
+    // Create an SNS client
+    private static final AmazonSNS snsClient = AmazonSNSClientBuilder.standard().build();
 
     @Override
     public Void handleRequest(SQSEvent event, Context context) {
         List<SQSEvent.SQSMessage> messages = event.getRecords();
+        // Get the SNS Topic ARN from environment variable passed during deployment.
+        String topicArn = System.getenv("PRODUCT_TOPIC_ARN");
 
         for (SQSEvent.SQSMessage message : messages) {
             String body = message.getBody();
@@ -49,6 +56,10 @@ public class CatalogBatchProcessHandler implements RequestHandler<SQSEvent, Void
 
             context.getLogger().log("Saved product: " + product.title());
         }
+
+        // Publish an event to the SNS topic with the product details
+        snsClient.publish(topicArn,"New Product Created:chiao ");
+        context.getLogger().log("Published SNS notification");
 
         return null;
     }
